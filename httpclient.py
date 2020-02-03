@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
 # coding: utf-8
+# Copyright 2020 Andrew Smith
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
 # Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,13 +56,31 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        lines = data.split('\r\n')
+        line = lines[0].split(' ')
+        code = 500
+        if (len(line)>1):
+            try:
+                code = int(line[1])
+            except:
+                pass
+        return code
 
     def get_headers(self,data):
         return None
 
     def get_body(self, data):
-        return None
+        lines = data.split('\r\n')
+        write=False
+        body=''
+        for line in lines:
+            if (line==''):
+                write=True
+                continue
+            if (write):
+                body += line
+        
+        return body
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -69,12 +102,79 @@ class HTTPClient(object):
 
     def GET(self, url, args=None):
         code = 500
-        body = ""
+
+        parse = urllib.parse.urlparse(url)
+        
+        path = parse.path
+        host = parse.hostname
+        port = 80
+        try:
+            if (parse.port != None):
+                port = parse.port
+        except:
+            pass
+        if (path==''):
+            path='/'
+
+        self.connect(host,port)
+        
+        requestLine = "GET " + path + " HTTP/1.1\r\n"
+        headers = "Host: {}\r\n\r\n".format(host)
+
+        request = requestLine + headers
+        
+        self.sendall(request)
+        response = self.recvall(self.socket)
+
+        self.close()
+
+        body = self.get_body(response)
+        code = self.get_code(response)
+
+        print(body)
+        
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        parse = urllib.parse.urlparse(url)
+        
+        path = parse.path
+        host = parse.hostname
+        port = 80
+        try:
+            if (parse.port != None):
+                port = parse.port
+        except:
+            pass
+        if (path==''):
+            path='/'
+
+        self.connect(host,port)
+
+        length = 0
+        payload = ''
+        if (args != None):
+            for key, value in args.items():
+                payload += key+'='+value+'&'
+            payload = payload[:-1]
+            length = len(payload.encode('utf-8'))
+            
+        
+        requestLine = "POST " + path + " HTTP/1.1\r\n"
+        headers = "Host: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n".format(host,length)
+
+        request = requestLine + headers + payload
+        
+        self.sendall(request)
+        response = self.recvall(self.socket)
+
+        self.close()
+
+        body = self.get_body(response)
+        code = self.get_code(response)
+
+        print(body)
+        
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
